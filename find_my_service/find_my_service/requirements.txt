@@ -1,0 +1,11 @@
+# # Django and related packages
+# django>=4.2.0,<5.0.0
+# python-dotenv==1.0.0
+
+# # MCP and AI integration
+# pydantic-ai>=0.1.0
+# mcp>=0.1.0
+
+# # Async support
+# uvicorn==0.23.2 
+# these give errors and unneeded

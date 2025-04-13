@@ -1,3 +1,5 @@
 *.cursor
 node_modules
 .env
+mcp_config.json
+.env.example

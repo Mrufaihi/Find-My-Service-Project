@@ -13,6 +13,7 @@
   import { Textarea } from "$lib/components/ui/textarea/index.js";
   import { Label } from "$lib/components/ui/label";
   import LocationView from "$lib/locationView.svelte";
+  import { mcpService } from "./services/mcpService";
   
   let api: CarouselAPI;
   
@@ -25,6 +26,7 @@
 	let query = '';
 	let location = '';
 	let loading = false;
+	let isMcpPowered = false;
 	
 	// Define proper types using JSDoc for Svelte compatibility
 	/** @type {Array<{name: string, mentions: number, rating: number}>} */
@@ -49,16 +51,13 @@
 		error = null;
 		
 		try {
-			// Build the search URL with query parameters
-			const searchUrl = `/search/?query=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}`;
-			
-			// Call the backend API
-			const response = await fetch(searchUrl);
-			const data = await response.json();
+			// Use the MCPService to search for providers
+			const data = await mcpService.searchProviders(query, location, pickedCategory as string);
 			
 			// Update the UI with the results
 			if (data.success) {
 				results = data.providers;
+				isMcpPowered = data.mcp_powered || false;
 				extractedNames = data.extracted_names || [];
 			} else {
 				error = data.error || 'An unknown error occurred';
@@ -71,6 +70,16 @@
 			loading = false;
 		}
 	}
+
+	// Check for MCP connection on component load
+	let mcpAvailable = false;
+	
+	async function checkMcpStatus() {
+		mcpAvailable = await mcpService.checkConnection();
+	}
+	
+	// Call the function when component mounts
+	checkMcpStatus();
 
 	const categories = [
 		{ value: "general", label: "General 🌏" },
@@ -99,11 +108,9 @@
 
 	<div class="mb-8 text-center">
 		<h1 class="text-3xl font-bold mb-2">Find My Service</h1>
-		<!-- <div class="flex items-center gap-2">	
-			<Input type="search" placeholder="Search for service provider Near you..."/>
-			<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="m11.271 11.978l3.872 3.873a.5.5 0 0 0 .708 0a.5.5 0 0 0 0-.708l-3.565-3.564c2.38-2.747 2.267-6.923-.342-9.532c-2.73-2.73-7.17-2.73-9.898 0s-2.728 7.17 0 9.9a6.96 6.96 0 0 0 4.949 2.05a.5.5 0 0 0 0-1a5.96 5.96 0 0 1-4.242-1.757a6.01 6.01 0 0 1 0-8.486a6.004 6.004 0 0 1 8.484 0a6.01 6.01 0 0 1 0 8.486a.5.5 0 0 0 .034.738"/></svg>
-		</div> -->
-
+		{#if mcpAvailable}
+			<div class="text-sm text-primary font-medium mb-2">Enhanced with AI-powered search</div>
+		{/if}
 	</div>
 
 	<div>
@@ -199,7 +206,12 @@
 	<!-- Results list -->
 	{#if results.length > 0}
 		<div class="bg-card rounded-lg shadow-md p-6">
-			<h2 class="text-xl font-semibold mb-4">Recommended Service Providers</h2>
+			<div class="flex justify-between items-center mb-4">
+				<h2 class="text-xl font-semibold">Recommended Service Providers</h2>
+				{#if isMcpPowered}
+					<span class="text-xs bg-primary/20 text-primary px-2 py-1 rounded-full">AI-powered</span>
+				{/if}
+			</div>
 			<ul class="divide-y divide-border">
 				{#each results as provider}
 					<li class="py-4">
@@ -221,7 +233,7 @@
 	{/if}
 
 	<!-- Extracted names (for demo purposes) -->
-	{#if extractedNames.length > 0}
+	{#if extractedNames.length > 0 && !isMcpPowered}
 		<div class="bg-card rounded-lg shadow-md p-6 mt-6">
 			<h2 class="text-xl font-semibold mb-4">Extracted Names (Proof of Concept)</h2>
 			<p class="text-sm text-muted-foreground mb-2">These are potential service provider names extracted from your query:</p>
