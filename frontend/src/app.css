@@ -47,11 +47,11 @@
     --ring: 224.3 76.3% 48%;
   }
 }
-/* Add shadcn component styles with higher specificity */
-@layer components {
-  /* Higher specificity for shadcn components */
-  .shadcn-btn,
-  [data-shadcn-component] {
-    @apply !text-primary-foreground !bg-primary;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
   }
 }

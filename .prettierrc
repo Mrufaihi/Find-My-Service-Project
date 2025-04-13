@@ -7,7 +7,6 @@
   "svelteSortOrder": "options-scripts-markup-styles",
   "svelteStrictMode": false,
   "svelteIndentScriptAndStyle": true,
-
   "overrides": [
     {
       "files": "*.svelte",

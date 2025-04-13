@@ -4,10 +4,21 @@
   import Button from "$lib/components/ui/button/button.svelte";
 	import * as Card from "$lib/components/ui/card/index";
   import * as Carousel from "$lib/components/ui/carousel/index";
+	import type { CarouselAPI } from "$lib/components/ui/carousel/context.js";
   import { Input } from "$lib/components/ui/input/index.js";
 	import * as Select from "$lib/components/ui/select/index.js";
+	// Define Selected type locally
+	type Selected<T> = { value: T; label: string } | T | undefined;
 	import { ModeWatcher } from "mode-watcher";
-
+  import { Textarea } from "$lib/components/ui/textarea/index.js";
+  import { Label } from "$lib/components/ui/label";
+  import LocationView from "$lib/locationView.svelte";
+  
+  let api: CarouselAPI;
+  
+  $: if (api) {
+		pickedCategory = categories[api.selectedScrollSnap()].value;
+  }
 
 
 	// State variables for the search form
@@ -54,7 +65,6 @@
 				results = [];
 			}
 		} catch (err) {
-			console.error('Error searching providers:', err);
 			error = 'Failed to connect to the server';
 			results = [];
 		} finally {
@@ -63,27 +73,44 @@
 	}
 
 	const categories = [
-    { value: "handy", label: "Handy" },
-    { value: "medicine", label: "Medicine" },
+		{ value: "general", label: "General 🌏" },
+    { value: "handy", label: "Handy 👨🏽‍🔧" },
+    { value: "medicine", label: "Medicine 🧑🏻‍⚕️" },
   ];
+
+	let pickedCategory:Selected<string>= categories[0].value //shadcn type
+	
+	// Handle location selection from map
+	function handleLocationChange(newLocation: string) {
+		location = newLocation;
+	}
+
+	// todo Google Maps API key - hardcoded since env variables having issues
+	const googleMapsApiKey = 'AIzaSyB2kxDjle7yKIVJjoNVKw5vMkENy9TljQQ';
 </script>
 
-<main class="container p-4 max-w-4xl flex flex-col gap-5">
+<main class="container p-4 max-w-4xl flex flex-col gap-5 justify-center ">
 	<ModeWatcher />
+
+	<!-- map -->
+	 <div class="h-100 w-full" id="map">
+
+	 </div>
 
 	<div class="mb-8 text-center">
 		<h1 class="text-3xl font-bold mb-2">Find My Service</h1>
-		<div class="flex items-center gap-2">	
+		<!-- <div class="flex items-center gap-2">	
 			<Input type="search" placeholder="Search for service provider Near you..."/>
 			<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="m11.271 11.978l3.872 3.873a.5.5 0 0 0 .708 0a.5.5 0 0 0 0-.708l-3.565-3.564c2.38-2.747 2.267-6.923-.342-9.532c-2.73-2.73-7.17-2.73-9.898 0s-2.728 7.17 0 9.9a6.96 6.96 0 0 0 4.949 2.05a.5.5 0 0 0 0-1a5.96 5.96 0 0 1-4.242-1.757a6.01 6.01 0 0 1 0-8.486a6.004 6.004 0 0 1 8.484 0a6.01 6.01 0 0 1 0 8.486a.5.5 0 0 0 .034.738"/></svg>
-		</div>
-		<Button>HEY</Button>
+		</div> -->
+
 	</div>
 
 	<div>
-		<Select.Root>
+		<!-- <Select.Root selected={pickedCategory} onSelectedChange={(value)=> pickedCategory= value}
+		>
 			<Select.Trigger class="w-[180px]">
-				<Select.Value placeholder="Select a Category" />
+				<Select.Value placeholder="Select a Category"  />
 			</Select.Trigger>
 			<Select.Content>
 				<Select.Group>
@@ -97,84 +124,95 @@
 				</Select.Group>
 			</Select.Content>
 			<Select.Input name="favoriteFruit" />
-		</Select.Root>	</div>
-	<Carousel.Root class="w-full max-w-xs">
-		<Carousel.Content>
-			{#each Array(5) as _, i (i)}
-				<Carousel.Item>
-					<div class="p-1">
-						<Card.Root>
-							<Card.Content
-								class="flex aspect-square items-center justify-center p-6"
-							>
-								<span class="text-4xl font-semibold">{i + 1}</span>
-							</Card.Content>
-						</Card.Root>
-					</div>
-				</Carousel.Item>
-			{/each}
-		</Carousel.Content>
-		<Carousel.Previous />
-		<Carousel.Next />
-	</Carousel.Root>
-	Copy
-	About
+		</Select.Root>	</div> -->
+	
+		<div class="flex flex-col items-center">
+			<Label class="text-xl" for="categorySelect">Category</Label>
+			<Carousel.Root id="categorySelect" bind:api 
+			class="w-full max-w-xs">
+				<Carousel.Content>
+					{#each categories as category}
+						<Carousel.Item>
+							<div class="p-1">
+								<Card.Root>
+									<Card.Content
+										class="flex aspect-square items-center justify-center p-6"
+									>
+										<span class="text-4xl font-semibold">{category.label}</span>
+									</Card.Content>
+								</Card.Root>
+							</div>
+						</Carousel.Item>
+					{/each}
+				</Carousel.Content>
+				<Carousel.Previous />
+				<Carousel.Next />
+			</Carousel.Root>
+			<!-- Just display if value bind is working -->
+			<h1>{pickedCategory}</h1>
+		</div>
+
 	
 	<!-- Search Form -->
-	<div class="bg-white rounded-lg shadow-md p-6 mb-6">
+	<div class="bg-card rounded-lg shadow-md p-6 mb-6">
 		<div class="mb-4">
-			<label for="problem" class="block text-sm font-medium text-gray-700 mb-1">What problem do you need help with?</label>
-			<textarea 
+			<Label  for="problem" class="block text-xl font-medium text-foreground mb-1">What problem do you need help with?</Label>
+			<Textarea 
 				id="problem" 
 				bind:value={query} 
-				class="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" 
-				rows="3" 
-				placeholder="Describe your issue (e.g., 'I need a dentist who specializes in root canals')"></textarea>
+				rows={4}
+				placeholder="I need a dentist who specializes in root canals"/>
 		</div>
 		
 		<div class="mb-6">
-			<label for="location" class="block text-sm font-medium text-gray-700 mb-1">Your Location</label>
-			<input 
+			<label for="location" class="block text-xl font-medium text-foreground mb-1">Your Location</label>
+			
+			<!-- Google Maps Location Picker -->
+			<LocationView apiKey={googleMapsApiKey} onChange={handleLocationChange} />
+			
+			<!-- Location Input Field (populated by map) -->
+			<Input 
 				id="location" 
 				type="text" 
 				bind:value={location} 
-				class="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" 
-				placeholder="City, State or Zip Code" />
-		</div>
+				class="w-full p-3 mt-2 border border-input rounded-md focus:ring-ring focus:border-ring" 
+				placeholder="Location will appear here" />
+		</div>	
 		
 		<Button 
-		 	variant="default"
 			on:click={searchServiceProviders} 
 			disabled={loading || !query || !location}
-			class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-md disabled:opacity-50 disabled:cursor-not-allowed">
+			variant="default"
+			class="flex gap-2 w-full disabled:opacity-50 disabled:cursor-not-allowed">
 			{loading ? 'Searching...' : 'Find Service Providers'}
+			<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="m11.271 11.978l3.872 3.873a.5.5 0 0 0 .708 0a.5.5 0 0 0 0-.708l-3.565-3.564c2.38-2.747 2.267-6.923-.342-9.532c-2.73-2.73-7.17-2.73-9.898 0s-2.728 7.17 0 9.9a6.96 6.96 0 0 0 4.949 2.05a.5.5 0 0 0 0-1a5.96 5.96 0 0 1-4.242-1.757a6.01 6.01 0 0 1 0-8.486a6.004 6.004 0 0 1 8.484 0a6.01 6.01 0 0 1 0 8.486a.5.5 0 0 0 .034.738"/></svg>
 		</Button>
 	</div>
 
 	<!-- Error message (if any) -->
 	{#if error}
-		<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+		<div class="bg-destructive/20 border border-destructive text-destructive px-4 py-3 rounded mb-6">
 			<p>{error}</p>
 		</div>
 	{/if}
 
 	<!-- Results list -->
 	{#if results.length > 0}
-		<div class="bg-white rounded-lg shadow-md p-6">
+		<div class="bg-card rounded-lg shadow-md p-6">
 			<h2 class="text-xl font-semibold mb-4">Recommended Service Providers</h2>
-			<ul class="divide-y divide-gray-200">
+			<ul class="divide-y divide-border">
 				{#each results as provider}
 					<li class="py-4">
 						<div class="flex justify-between">
 							<h3 class="font-medium">{provider.name}</h3>
-							<span class="text-blue-600 font-medium">{provider.mentions} mentions</span>
+							<span class="text-primary font-medium">{provider.mentions} mentions</span>
 						</div>
 						<div class="flex items-center mt-1">
-							<div class="flex text-yellow-400">
+							<div class="flex text-amber-400">
 								{'★'.repeat(Math.floor(provider.rating))}
 								{'☆'.repeat(5 - Math.floor(provider.rating))}
 							</div>
-							<span class="text-gray-600 ml-1">{provider.rating.toFixed(1)}</span>
+							<span class="text-muted-foreground ml-1">{provider.rating.toFixed(1)}</span>
 						</div>
 					</li>
 				{/each}
@@ -184,9 +222,9 @@
 
 	<!-- Extracted names (for demo purposes) -->
 	{#if extractedNames.length > 0}
-		<div class="bg-white rounded-lg shadow-md p-6 mt-6">
+		<div class="bg-card rounded-lg shadow-md p-6 mt-6">
 			<h2 class="text-xl font-semibold mb-4">Extracted Names (Proof of Concept)</h2>
-			<p class="text-sm text-gray-600 mb-2">These are potential service provider names extracted from your query:</p>
+			<p class="text-sm text-muted-foreground mb-2">These are potential service provider names extracted from your query:</p>
 			<ul class="list-disc list-inside">
 				{#each extractedNames as name}
 					<li>{name}</li>
@@ -195,11 +233,3 @@
 		</div>
 	{/if}
 </main>
-
-<style>
-	:global(body) {
-		background-color: #f9fafb;
-		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-			Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-	}
-</style>

@@ -7,9 +7,13 @@
   "[django-html]": {
     "editor.defaultFormatter": "monosans.djlint"
   },
+  "prettier.documentSelectors": ["**/*.svelte"],
   "[svelte]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "editor.defaultFormatter": "svelte.svelte-vscode"
   },
   "python.formatting.provider": "black",
-  "python.formatting.blackArgs": ["--line-length", "88"]
+  "python.formatting.blackArgs": ["--line-length", "88"],
+  "editor.codeActionsOnSave": {
+    "source.fixAll": true
+  }
 }

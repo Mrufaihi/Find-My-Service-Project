@@ -7,12 +7,15 @@
 // }
 {
   "compilerOptions": {
+    "types": ["google.maps"],
     "baseUrl": ".",
     "paths": {
       "$lib": ["./src/lib"],
       "$lib/*": ["./src/lib/*"]
     },
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "module": "esnext",
+    "lib": ["es2015", "dom"]
   },
   "exclude": ["node_modules", "dist", "build", "public"]
 }
