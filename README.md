@@ -4,7 +4,9 @@ A modern web application that helps users find service providers near them using
 
 
 https://github.com/user-attachments/assets/3f1bf2b4-91f9-4a75-91b9-7af1e12f0c5b
+
 -----
+
 <img width="1680" alt="Screenshot 2025-04-14 at 11 01 59 AM" src="https://github.com/user-attachments/assets/e44c9046-2816-41a3-b08f-2a30dc1e0936" />
 
 
