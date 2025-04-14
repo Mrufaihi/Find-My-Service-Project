@@ -2,8 +2,13 @@
 
 A modern web application that helps users find service providers near them using AI-powered search.
 
-![Main Interface](images/main-interface.png)
-*Screenshot placeholder: Main search interface*
+![Main Interface]
+<img width="1680" alt="Screenshot 2025-04-14 at 11 01 59 AM" src="https://github.com/user-attachments/assets/e44c9046-2816-41a3-b08f-2a30dc1e0936" />
+
+
+https://github.com/user-attachments/assets/3f1bf2b4-91f9-4a75-91b9-7af1e12f0c5b
+
+
 
 ## What It Does
 
@@ -16,7 +21,10 @@ Find My Service connects people with local service providers by:
 - Handling different service categories
 
 ![Search Results](images/search-results.png)
-*Screenshot placeholder: Search results with ratings*
+<img width="845" alt="Screenshot 2025-04-14 at 11 03 17 AM" src="https://github.com/user-attachments/assets/a3d6c326-802e-4488-9316-0ef24dcc1542" />
+Real results, Real Provider:
+<img width="1369" alt="Screenshot 2025-04-14 at 10 51 17 AM" src="https://github.com/user-attachments/assets/ec6b0526-73c6-4c4a-b958-3d6c329eafce" />
+
 
 ## How It Works
 
@@ -32,9 +40,6 @@ Find My Service connects people with local service providers by:
 - **Backend**: Django
 - **AI Search**: Claude AI with brave_search, google_maps, and web_search tools
 - **Database**: SQLite (development) / PostgreSQL (production)
-
-![Architecture](images/architecture.png)
-*Diagram placeholder: System architecture*
 
 ## Key Features
 
