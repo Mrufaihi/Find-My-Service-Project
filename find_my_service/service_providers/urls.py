@@ -7,4 +7,7 @@ urlpatterns = [
     
     # Search endpoint to get service providers based on query
     path('search/', views.search_providers, name='search_providers'),
+    
+    # MCP Tools diagnostic endpoint
+    path('mcp-diagnostic/', views.mcp_tools_diagnostic, name='mcp_tools_diagnostic'),
 ] 

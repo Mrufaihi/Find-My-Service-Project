@@ -14,13 +14,38 @@
   import { Label } from "$lib/components/ui/label";
   import LocationView from "$lib/locationView.svelte";
   import { mcpService } from "./services/mcpService";
+  import { onMount } from 'svelte';
+  import { fade } from 'svelte/transition';
+  
+  // Define categories first
+  const categories = [
+    { value: "general", label: "General 🌏" },
+    { value: "handy", label: "Handy 👨🏽‍🔧" },
+    { value: "medicine", label: "Medicine 🧑🏻‍⚕️" },
+  ];
   
   let api: CarouselAPI;
+  let currentSelectedIndex = 0;
   
+  // Set initial pickedCategory
+  let pickedCategory:Selected<string> = categories[0].value;
+  
+  // Update pickedCategory when carousel changes
   $: if (api) {
-		pickedCategory = categories[api.selectedScrollSnap()].value;
+    api.on("select", () => {
+      currentSelectedIndex = api.selectedScrollSnap();
+      pickedCategory = categories[currentSelectedIndex].value;
+      console.log("Category updated:", pickedCategory);
+    });
   }
 
+  onMount(() => {
+    // Ensure initial category is set
+    if (api) {
+      currentSelectedIndex = api.selectedScrollSnap();
+      pickedCategory = categories[currentSelectedIndex].value;
+    }
+  });
 
 	// State variables for the search form
 	let query = '';
@@ -51,7 +76,7 @@
 		error = null;
 		
 		try {
-			// Use the MCPService to search for providers
+			// Use the MCPService to search for providers (connect to backend service)
 			const data = await mcpService.searchProviders(query, location, pickedCategory as string);
 			
 			// Update the UI with the results
@@ -80,14 +105,6 @@
 	
 	// Call the function when component mounts
 	checkMcpStatus();
-
-	const categories = [
-		{ value: "general", label: "General 🌏" },
-    { value: "handy", label: "Handy 👨🏽‍🔧" },
-    { value: "medicine", label: "Medicine 🧑🏻‍⚕️" },
-  ];
-
-	let pickedCategory:Selected<string>= categories[0].value //shadcn type
 	
 	// Handle location selection from map
 	function handleLocationChange(newLocation: string) {
@@ -115,6 +132,39 @@
 
 	function navigateToLogin() {
 		currentPage = 'login';
+	}
+
+	// Format error messages for better display
+	function formatErrorMessage(error) {
+		if (!error) return null;
+		
+		// Generic error messages based on type
+		if (error.includes("technical difficulties")) {
+			return {
+				title: "Service Unavailable",
+				message: error,
+				icon: "⚠️"
+			};
+		} else if (error.includes("No service providers found")) {
+			return {
+				title: "No Results",
+				message: error,
+				icon: "🔎"
+			};
+		} else if (error.includes("couldn't find any matches")) {
+			return {
+				title: "No Matches Found",
+				message: error,
+				icon: "🔎"
+			};
+		} else {
+			// Default error display
+			return {
+				title: "Search Error",
+				message: error,
+				icon: "⚠️"
+			};
+		}
 	}
 </script>
 
@@ -209,10 +259,9 @@
 				<Carousel.Next />
 			</Carousel.Root>
 			<!-- Just display if value bind is working -->
-			<h1>{pickedCategory}</h1>
+			<!-- <h1>{pickedCategory}</h1> -->
 		</div>
 
-	
 	<!-- Search Form -->
 	<div class="bg-card rounded-lg shadow-md p-6 mb-6">
 		<div class="mb-4">
@@ -251,8 +300,19 @@
 
 	<!-- Error message (if any) -->
 	{#if error}
-		<div class="bg-destructive/20 border border-destructive text-destructive px-4 py-3 rounded mb-6">
-			<p>{error}</p>
+		<div transition:fade={{duration: 200}} class="bg-card border border-destructive/30 text-foreground px-6 py-4 rounded-lg mb-6 shadow-sm">
+			{#if formatErrorMessage(error)}
+				{@const errorData = formatErrorMessage(error)}
+				<div class="flex items-start gap-3">
+					<div class="text-2xl">{errorData.icon}</div>
+					<div>
+						<h3 class="text-lg font-medium mb-1">{errorData.title}</h3>
+						<p class="text-muted-foreground">{errorData.message}</p>
+					</div>
+				</div>
+			{:else}
+				<p>{error}</p>
+			{/if}
 		</div>
 	{/if}
 

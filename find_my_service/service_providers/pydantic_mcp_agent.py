@@ -1,15 +1,22 @@
-from dotenv import load_dotenv
 import asyncio
+import os
 import pathlib
 import sys
-import os
 import traceback
 import logging
+import nest_asyncio
 
 # Set up logging
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s"
 )
+
+# Apply nest_asyncio to allow nested event loops
+try:
+    nest_asyncio.apply()
+    logging.info("Applied nest_asyncio to allow nested event loops")
+except Exception as e:
+    logging.warning(f"Failed to apply nest_asyncio: {e}")
 
 # Import additional required packages
 try:
@@ -20,7 +27,7 @@ try:
 except ImportError as e:
     logging.error(f"Error importing pydantic_ai: {e}")
     logging.error("Required packages not found. Please install with:")
-    logging.error("pip install pydantic-ai python-dotenv")
+    logging.error("pip install pydantic-ai python-dotenv nest-asyncio")
     sys.exit(1)
 
 # Import the MCPClient
@@ -38,39 +45,32 @@ BASE_DIR = CURRENT_DIR.parent
 
 # Define path to config file
 CONFIG_FILE = os.path.join(BASE_DIR, "find_my_service", "mcp_config.json")
+
+# Fallback to project root if file doesn't exist
+if not os.path.exists(CONFIG_FILE):
+    CONFIG_FILE = os.path.join(BASE_DIR, "mcp_config.json")
+    
 logging.info(f"CONFIG_FILE path: {CONFIG_FILE}")
 logging.info(f"CONFIG_FILE exists: {os.path.exists(CONFIG_FILE)}")
 
 # Load environment variables
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    logging.warning("python-dotenv not installed, continuing without loading .env")
 
 def get_model():
     """Get the appropriate LLM model for the agent."""
-    # For testing, we can use a mock model if API key is not available
+    # Get API key from environment
     api_key = os.getenv('LLM_API_KEY') or os.getenv('GEMINI_API_KEY')
     
     if not api_key:
-        logging.warning("No API key found for the AI model! Creating mock model.")
-        # Create a simple mock model for testing
-        from pydantic_ai.models.base import BaseModel
-        
-        class MockModel(BaseModel):
-            def __init__(self):
-                pass
-                
-            async def generate(self, *args, **kwargs):
-                return {
-                    "choices": [{
-                        "message": {
-                            "content": "This is a mock response. Please add a valid API key in .env file."
-                        }
-                    }]
-                }
-        
-        return MockModel()
+        logging.error("No API key found for the AI model! MCP search will not work.")
+        raise ValueError("Missing API key for LLM model. Set LLM_API_KEY or GEMINI_API_KEY in .env file.")
     
-    # Use a real model if API key is available
-    model_name = os.getenv('MODEL_CHOICE', 'gemini-1.5-flash')
+    # Use a real model with API key
+    model_name = os.getenv('MODEL_CHOICE', 'gemini-2.0-flash')
     
     # Create model with explicit API key
     model = GeminiModel(
@@ -79,52 +79,70 @@ def get_model():
     )
     return model
 
+async def verify_mcp_setup():
+    """Verify MCP setup and requirements"""
+    issues = []
+    
+    # Check if config file exists
+    if not os.path.exists(CONFIG_FILE):
+        issues.append(f"Config file not found: {CONFIG_FILE}")
+    
+    # Check MCPClient import
+    if MCPClient is None:
+        issues.append("MCPClient module could not be imported")
+    
+    # Check required packages
+    try:
+        import mcp
+    except ImportError:
+        issues.append("MCP package not installed. Run: pip install modelcontextprotocol")
+    
+    return issues
+
 async def get_pydantic_ai_agent():
     """
     Create and return a Pydantic AI agent with MCP tools.
     This function is used by API endpoints to get an agent instance.
     """
-    # Create a basic agent even if MCP is not available
-    agent = Agent(model=get_model())
+    # Prepare the system prompt
+    system_prompt = """You are a service provider finder powered by real-time search tools.
+    When users ask about services, ALWAYS use your search tools to find real options.
+    Never say you cannot search or access real-time information.
+    When someone asks about a service:
+    1. Use 'brave_web_search' to find real service providers for the query
+    2. Use 'google_maps' or equivalent tools to get location-specific information
+    3. Return specific provider names, their ratings and reviews found
+    You must respond with real results found from your tools."""
+    
+    try:
+        # Create a basic agent with tool use enforced
+        agent = Agent(
+            model=get_model(),
+            system_prompt=system_prompt,
+        )
+        
+        # Force tool usage mode to auto
+        agent.tool_choice = "auto"
+    except ValueError as e:
+        logging.error(f"Failed to create agent: {e}")
+        return None, None
+    
+    # Check MCP setup
+    setup_issues = await verify_mcp_setup()
+    if setup_issues:
+        for issue in setup_issues:
+            logging.error(f"MCP setup issue: {issue}")
+        
+        logging.error("MCP is required but has setup issues")
+        return None, agent
     
     # Return early if MCPClient is not available
     if MCPClient is None:
         logging.warning("Using AI agent without MCP tools (MCPClient is None)")
-        # Create a dummy tool for testing
-        from pydantic_ai import Tool
-        
-        async def dummy_search(**kwargs):
-            logging.info(f"Dummy search called with: {kwargs}")
-            return [
-                {"name": "Test Provider 1", "rating": 4.5, "mentions": 15},
-                {"name": "Test Provider 2", "rating": 3.8, "mentions": 8}
-            ]
-        
-        dummy_tool = Tool(
-            dummy_search,
-            name="dummy_search",
-            description="A dummy search tool for testing",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "Search query"},
-                    "location": {"type": "string", "description": "Location to search"}
-                }
-            }
-        )
-        
-        agent.tools = [dummy_tool]
-        logging.info("Added dummy tool for testing")
         return None, agent
     
     client = None
     try:
-        # Check if CONFIG_FILE exists before proceeding
-        if not os.path.exists(CONFIG_FILE):
-            logging.error(f"Config file not found: {CONFIG_FILE}")
-            # Create a dummy tool since we can't load real ones
-            return create_agent_with_dummy_tools(agent)
-            
         # Initialize MCP client with tools from config
         logging.info("Creating MCPClient instance...")
         client = MCPClient()
@@ -134,14 +152,22 @@ async def get_pydantic_ai_agent():
         
         try:
             logging.info("Starting MCP client and loading tools...")
-            # Add timeout for server startup
-            tools = await asyncio.wait_for(client.start(), timeout=10.0)
+            
+            # Ensure we're using the current event loop
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                # No running event loop, create a new one
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+            # Start the client with timeout
+            tools = await asyncio.wait_for(client.start(), timeout=30.0)
             logging.info(f"Client started successfully, found {len(tools)} tools")
             
             if not tools:
                 logging.warning("No tools were found by the MCP client!")
-                # Create a dummy tool since we can't load real ones
-                return client, create_agent_with_dummy_tools(agent)[1]
+                return client, agent
             else:
                 # Clean tool schemas
                 logging.info("Cleaning tool schemas...")
@@ -160,117 +186,60 @@ async def get_pydantic_ai_agent():
                             tool.parameters['type'] = 'object'
                 
                 # Log available tools
+                tool_names = []
                 for tool in tools:
-                    logging.info(f"Tool available: {tool.name}")
+                    tool_name = getattr(tool, 'name', 'unknown')
+                    logging.info(f"Tool available: {tool_name}")
+                    tool_names.append(tool_name)
                 
-                # Assign tools to agent
-                agent.tools = tools
-                
-                logging.info(f"Agent created with {len(agent.tools) if hasattr(agent, 'tools') else 0} tools")
-                return client, agent
+                # Create new agent with combined system prompt and tools
+                tool_instruction = f"\n\nAvailable tools: {', '.join(tool_names)}. Always use the relevant tool to search."
+                # Make sure to explicitly assign tools to agent.tools as a property
+                try:
+                    new_agent = Agent(
+                        model=get_model(),
+                        system_prompt=system_prompt + tool_instruction,
+                        tools=tools
+                    )
+                    # Ensure the tools are assigned as a property
+                    if not hasattr(new_agent, 'tools'):
+                        # Try setting tools as a property
+                        new_agent.tools = tools
+                    new_agent.tool_choice = "auto"
+                    
+                    # Verify tools exist
+                    if hasattr(new_agent, 'tools'):
+                        logging.info(f"Agent created with {len(new_agent.tools) if new_agent.tools else 0} tools")
+                    else:
+                        logging.warning("Agent was created but still has no tools attribute")
+                    
+                    return client, new_agent
+                except Exception as e:
+                    logging.error(f"Error creating agent with tools: {e}")
+                    logging.error(traceback.format_exc())
+                    return client, agent
                 
         except asyncio.TimeoutError:
             logging.error("Timeout waiting for MCP client to start")
-            return client, create_agent_with_dummy_tools(agent)[1]
+            return client, agent
         except Exception as e:
             logging.error(f"Error starting MCP client: {e}")
             logging.error(f"Stack trace: {traceback.format_exc()}")
-            # Return client and agent with dummy tools
-            return client, create_agent_with_dummy_tools(agent)[1]
+            return client, agent
         
     except Exception as e:
         logging.error(f"Error initializing MCP client: {e}")
         logging.error(f"Stack trace: {traceback.format_exc()}")
-        # Return agent with dummy tools
-        return None, create_agent_with_dummy_tools(agent)[1]
+        return None, agent
 
-def create_agent_with_dummy_tools(agent=None):
-    """Helper function to create an agent with dummy tools for fallback"""
-    if agent is None:
-        agent = Agent(model=get_model())
-    
-    from pydantic_ai import Tool
-    
-    # Create a dummy search tool
-    async def dummy_brave_search(**kwargs):
-        logging.info(f"Dummy Brave search called with: {kwargs}")
-        query = kwargs.get('query', '')
-        location = kwargs.get('location', '')
-        
-        # Return mock search results based on query
-        if 'dentist' in query.lower():
-            return [
-                {"name": "Al-Madinah Dental Center", "rating": 4.8, "mentions": 120},
-                {"name": "Dr. Tariq Dental Clinic", "rating": 4.5, "mentions": 85},
-                {"name": "Jeddah Smile Dentistry", "rating": 4.6, "mentions": 93}
-            ]
-        elif 'plumber' in query.lower():
-            return [
-                {"name": "Jeddah Plumbing Services", "rating": 4.2, "mentions": 42},
-                {"name": "Al-Balad Maintenance Co.", "rating": 3.9, "mentions": 28},
-                {"name": "Expert Pipe Fixers", "rating": 4.4, "mentions": 56}
-            ]
-        else:
-            return [
-                {"name": f"Top {query.title()} Provider", "rating": 4.7, "mentions": 78},
-                {"name": f"Jeddah {query.title()} Services", "rating": 4.3, "mentions": 54},
-                {"name": f"Al-Balad {query.title()} Experts", "rating": 4.5, "mentions": 62}
-            ]
-    
-    # Create a dummy maps tool
-    async def dummy_maps_search(**kwargs):
-        logging.info(f"Dummy Maps search called with: {kwargs}")
-        query = kwargs.get('query', '')
-        location = kwargs.get('location', '')
-        
-        # Return mock location results
-        return [
-            {"name": f"{query.title()} Service Near {location}", "address": f"123 Main St, {location}", "rating": 4.5, "reviews": 42},
-            {"name": f"24/7 {query.title()} Services", "address": f"456 Oak Rd, {location}", "rating": 4.2, "reviews": 28},
-            {"name": f"Premier {query.title()} Center", "address": f"789 Pine Ave, {location}", "rating": 4.8, "reviews": 65}
-        ]
-    
-    # Create the tools
-    brave_tool = Tool(
-        dummy_brave_search,
-        name="mcp_brave_brave_web_search",
-        description="Search the web for information about businesses and services",
-        parameters={
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Search query"},
-                "count": {"type": "number", "description": "Number of results"}
-            },
-            "required": ["query"]
-        }
-    )
-    
-    maps_tool = Tool(
-        dummy_maps_search,
-        name="mcp_github_search_code", 
-        description="Search for businesses and locations on a map",
-        parameters={
-            "type": "object",
-            "properties": {
-                "q": {"type": "string", "description": "Search query"},
-                "location": {"type": "string", "description": "Location to search near"}
-            },
-            "required": ["q"]
-        }
-    )
-    
-    # Add tools to agent
-    agent.tools = [brave_tool, maps_tool]
-    logging.info(f"Created agent with {len(agent.tools)} dummy tools for fallback")
-    
-    return None, agent
-
-# Add this test function at the end of the file
+# Modified test function with proper event loop and cleanup handling
 async def test_agent():
     """
     Simple test function to verify the agent is working correctly.
     """
     logging.info("======= TESTING AGENT =======")
+    mcp_client = None
+    
     try:
         # Get the agent
         mcp_client, agent = await get_pydantic_ai_agent()
@@ -282,9 +251,8 @@ async def test_agent():
         
         # Print agent info
         if hasattr(agent, 'tools'):
-            logging.info(f"Agent has {len(agent.tools)} tools")
-            for i, tool in enumerate(agent.tools):
-                logging.info(f"Tool {i+1}: {tool.name} - {tool.description[:50]}...")
+            logging.info(f"Agent has tools")
+            # Don't try to iterate over tools as it might not be iterable
         else:
             logging.warning("Agent has no tools attribute")
         
@@ -312,14 +280,16 @@ async def test_agent():
         logging.info("======= TEST COMPLETE =======")
     except Exception as e:
         logging.error(f"Error testing agent: {str(e)}")
-        import traceback
         logging.error(traceback.format_exc())
     finally:
         # Clean up
-        if 'mcp_client' in locals() and mcp_client:
-            await mcp_client.cleanup()
+        if mcp_client:
+            try:
+                await mcp_client.cleanup()
+                logging.info("MCP client cleaned up successfully")
+            except Exception as e:
+                logging.error(f"Error cleaning up MCP client: {e}")
 
 # If this file is run directly, run the test
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(test_agent()) 

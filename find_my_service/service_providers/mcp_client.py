@@ -12,6 +12,7 @@ import json
 import os
 import sys
 import pathlib
+import traceback
 
 # Set up logging
 logging.basicConfig(
@@ -75,9 +76,16 @@ class MCPClient:
         try:
             await self.cleanup_servers()
             try:
-                await self.exit_stack.aclose()
-            except (asyncio.CancelledError, Exception) as e:
-                logging.warning(f"Warning during exit stack cleanup: {e}")
+                # Check if the event loop is still running
+                try:
+                    current_loop = asyncio.get_running_loop()
+                    # Only close the exit stack if we're in a valid event loop
+                    await self.exit_stack.aclose()
+                except RuntimeError:
+                    # No running event loop or loop is closed
+                    logging.warning("Could not access event loop during cleanup")
+            except Exception as e:
+                logging.warning(f"Warning while closing exit stack: {e}")
         except Exception as e:
             logging.warning(f"Warning during final cleanup: {e}")
 
@@ -175,8 +183,15 @@ class MCPServer:
         async with self._cleanup_lock:
             try:
                 try:
-                    await self.exit_stack.aclose()
-                except (asyncio.CancelledError, Exception) as e:
+                    # Check if the event loop is still running
+                    try:
+                        current_loop = asyncio.get_running_loop()
+                        # Only close the exit stack if we're in a valid event loop
+                        await self.exit_stack.aclose()
+                    except RuntimeError:
+                        # No running event loop or loop is closed
+                        logging.warning(f"Could not access event loop during cleanup of server {self.name}")
+                except Exception as e:
                     logging.warning(f"Warning while closing exit stack for server {self.name}: {e}")
                 self.session = None
                 self.stdio_context = None

@@ -12,6 +12,9 @@
   "dependencies": {
     "@modelcontextprotocol/server-brave-search": "^0.6.2",
     "@modelcontextprotocol/server-google-maps": "^0.6.2",
+    "@modelcontextprotocol/server-sequential-thinking": "^0.6.2",
+    "@modelcontextprotocol/server-puppeteer": "^0.6.2",
+    "@modelcontextprotocol/server-filesystem": "^0.6.2",
     "mcprouter": "^0.1.6"
   }
 }

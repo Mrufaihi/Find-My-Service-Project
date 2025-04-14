@@ -62,7 +62,28 @@ export class MCPService {
       console.log('Search response status:', response.status, response.statusText);
 
       if (!response.ok) {
-        throw new Error(`Search request failed with status: ${response.status}`);
+        // Standardized error messages based on status code
+        if (response.status === 404) {
+          return {
+            success: false,
+            error: 'Service not found. Please try again later.',
+          };
+        } else if (response.status === 500) {
+          return {
+            success: false,
+            error: "We're experiencing technical difficulties. Please try again later.",
+          };
+        } else if (response.status === 429) {
+          return {
+            success: false,
+            error: 'Too many search requests. Please wait a moment and try again.',
+          };
+        } else {
+          return {
+            success: false,
+            error: 'Something went wrong with your search. Please try again.',
+          };
+        }
       }
 
       // Parse and return results
@@ -71,7 +92,13 @@ export class MCPService {
       return data;
     } catch (error) {
       console.error('Error searching providers:', error);
-      throw error;
+
+      // Return a user-friendly error message instead of throwing
+      return {
+        success: false,
+        error:
+          "We couldn't connect to our search service. Please check your internet connection and try again.",
+      };
     }
   }
 
